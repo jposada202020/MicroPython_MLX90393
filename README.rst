@@ -36,4 +36,3 @@ To install in a virtual environment in your current project:
     python3 -m venv .venv
     source .env/bin/activate
     pip3 install micropython-mlx90393
-

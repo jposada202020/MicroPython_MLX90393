@@ -21,7 +21,6 @@ This library depends on Micropython
 
 # pylint: disable=too-many-arguments, line-too-long
 
-import time
 from micropython import const
 
 try:
@@ -39,14 +38,14 @@ class CBits:
     """
 
     def __init__(
-            self,
-            num_bits: int,
-            register_address: int,
-            start_bit: int,
-            register_width=2,
-            lsb_first=True,
-            cmd_read=None,
-            cmd_write=None,
+        self,
+        num_bits: int,
+        register_address: int,
+        start_bit: int,
+        register_width=2,
+        lsb_first=True,
+        cmd_read=None,
+        cmd_write=None,
     ) -> None:
         self.bit_mask = ((1 << num_bits) - 1) << start_bit
         self.register = register_address
@@ -57,9 +56,9 @@ class CBits:
         self.cmd_write = cmd_write
 
     def __get__(
-            self,
-            obj,
-            objtype=None,
+        self,
+        obj,
+        objtype=None,
     ) -> int:
         payload = bytes([self.cmd_read, self.register << 2])
         obj._i2c.writeto(obj._address, payload)
@@ -120,24 +119,24 @@ class RegisterStructCMD:
     """
 
     def __init__(
-            self,
-            register_address: int,
-            form: str,
-            cmd_read: int = None,
-            cmd_write: int = None,
+        self,
+        register_address: int,
+        form: str,
+        cmd_read: int = None,
+        cmd_write: int = None,
     ) -> None:
         self.format = form
         self.register = register_address
         self.lenght = (
-                struct.calcsize(form) + 1
+            struct.calcsize(form) + 1
         )  # Read the response (+1 to account for the mandatory status byte!)
         self.cmd_read = cmd_read
         self.cmd_write = cmd_write
 
     def __get__(
-            self,
-            obj,
-            objtype=None,
+        self,
+        obj,
+        objtype=None,
     ):
         payload = bytes([self.cmd_read, self.register << 2])
         obj._i2c.writeto(obj._address, payload)
@@ -145,7 +144,7 @@ class RegisterStructCMD:
         data = bytearray(self.lenght)
         data = obj._i2c.readfrom(obj._address, self.lenght)
 
-        self._status_last, val = struct.unpack(">BH", data)
+        obj._status_last, val = struct.unpack(">BH", data)
 
         return val
 
@@ -273,7 +272,16 @@ class MLX90393:
         """
         The gain setting for the device.
         """
-        gain_values = ("GAIN_5X", "GAIN_4X", "GAIN_3X", "GAIN_2_5X", "GAIN_2X", "GAIN_1_67X", "GAIN_1_33X", "GAIN_1X")
+        gain_values = (
+            "GAIN_5X",
+            "GAIN_4X",
+            "GAIN_3X",
+            "GAIN_2_5X",
+            "GAIN_2X",
+            "GAIN_1_67X",
+            "GAIN_1_33X",
+            "GAIN_1X",
+        )
 
         return gain_values[self._gain]
 
@@ -282,5 +290,3 @@ class MLX90393:
         if value not in range(1, 8):
             raise ValueError("Invalid GAIN setting")
         self._gain = value
-
-
