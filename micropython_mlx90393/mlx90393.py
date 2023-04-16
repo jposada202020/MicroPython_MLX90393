@@ -321,7 +321,10 @@ class MLX90393:
     @property
     def gain(self):
         """
-        The gain setting for the device.
+        The gain setting for the device. Sets the analog gain to the desired value.
+        The sensitivity is dependent on the axis (the X- and Y-axis have higher
+        sensitivity, compared with the Z-axis, expressed in LSB/µT) as well as
+        the setting of the `resolution_x`, `resolution_y`, `resolution_z` parameter.
         """
         gain_values = (
             "GAIN_5X",
@@ -475,6 +478,12 @@ class MLX90393:
     def oversampling(self):
         """
         Temperature sensor ADC oversampling ratio
+
+        .. note::
+            The MLX90393 provides configurable filters to adjust the tradeoff
+            between current consumption, noise, and conversion time. See section
+             15.1.5 for details on selecting the conversion time by adjusting
+             `oversampling` and `digital_filter`
 
         +----------------------------+-----------------+
         | Mode                       | Value           |
