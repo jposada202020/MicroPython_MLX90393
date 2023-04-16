@@ -271,6 +271,21 @@ class MLX90393:
     def gain(self):
         """
         The gain setting for the device.
+
+        +----------------------------------+----------------------+
+        | Mode                             | Value                |
+        +==================================+======================+
+        | :py:const:`mlx90393.GAIN_1_67X`  | :py:const:`0x5`      |
+        | :py:const:`mlx90393.GAIN_2X`     | :py:const:`0x4`      |
+        | :py:const:`mlx90393.GAIN_5X`     | :py:const:`0x0`      |
+        | :py:const:`mlx90393._GAIN_SHIFT` | :py:const:`const(4)` |
+        | :py:const:`mlx90393.GAIN_1_33X`  | :py:const:`0x6`      |
+        | :py:const:`mlx90393.GAIN_1X`     | :py:const:`0x7`      |
+        | :py:const:`mlx90393.GAIN_2_5X`   | :py:const:`0x3`      |
+        | :py:const:`mlx90393.GAIN_3X`     | :py:const:`0x2`      |
+        | :py:const:`mlx90393.GAIN_4X`     | :py:const:`0x1`      |
+        +----------------------------------+----------------------+
+
         """
         gain_values = (
             "GAIN_5X",
