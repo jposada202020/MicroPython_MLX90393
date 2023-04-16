@@ -21,6 +21,7 @@ This library depends on Micropython
 
 # pylint: disable=too-many-arguments, line-too-long
 
+import time
 from micropython import const
 
 try:
@@ -167,6 +168,9 @@ class RegisterStructCMD:
 
 _CMD_RR = const(0b01010000)
 _CMD_WR = const(0b01100000)
+_CMD_SM = const(0b00110000)
+_CMD_RM = const(0b01000000)
+_CMD_AXIS_ALL = const(0xE)
 _REG_WHOAMI = const(0x0C)
 
 # Gain settings
@@ -178,6 +182,28 @@ GAIN_2X = const(0x04)
 GAIN_1_67X = const(0x05)
 GAIN_1_33X = const(0x06)
 GAIN_1X = const(0x07)
+
+# Resolution settings
+RESOLUTION_0 = 0x0
+RESOLUTION_1 = 0x1
+RESOLUTION_2 = 0x2
+RESOLUTION_3 = 0x3
+
+# Filter settings
+FILTER_0 = 0x0
+FILTER_1 = 0x1
+FILTER_2 = 0x2
+FILTER_3 = 0x3
+FILTER_4 = 0x4
+FILTER_5 = const(0x5)
+FILTER_6 = const(0x6)
+FILTER_7 = const(0x7)
+
+# Oversampling settings
+OSR_0 = const(0x0)
+OSR_1 = const(0x1)
+OSR_2 = const(0x2)
+OSR_3 = const(0x3)
 
 
 class MLX90393:
@@ -247,6 +273,17 @@ class MLX90393:
         1: (10.137, 8.109, 6.082, 5.068, 4.055, 3.379, 2.703, 2.027),
     }
 
+    _TCONV = (
+        (1.27, 1.84, 3.00, 5.30),
+        (1.46, 2.23, 3.76, 6.84),
+        (1.84, 3.00, 5.30, 9.91),
+        (2.61, 4.53, 8.37, 16.05),
+        (4.15, 7.60, 14.52, 28.34),
+        (7.22, 13.75, 26.80, 52.92),
+        (13.36, 26.04, 51.38, 102.07),
+        (25.65, 50.61, 100.53, 200.37),
+    )
+
     _resolutionsxy = {0: _res0_xy, 1: _res1_xy, 2: _res2_xy, 3: _res3_xy}
     _resolutionsz = {0: _res0_z, 1: _res1_z, 2: _res2_z, 3: _res3_z}
 
@@ -258,34 +295,33 @@ class MLX90393:
     # Register 0x00
     #  Z-Series(3) | Gain(3) |  Gain(1) | Gain(0) | HallConf(3) | HallConf(2) | HallConf(1) | HallConf(0) |
     # ----------------------------------------------------------------------------------------------------
-    #  CONV0(1)    | AVG1(1) | AVG0(1)  | T/nA(1) |    POL(1)   | DR/Alert(1) | Soft_Reset  |   —
-    _gain = CBits(3, 0x00, 4, 2, False, _CMD_RR, _CMD_WR)
+    #  CONV0(1)    | AVG1(1) | AVG0(1)  | T/nA(1) |    POL(1)   | DR/Alert(1) | Soft_Reset  |   —         |
     _hall = CBits(4, 0x00, 0, 2, False, _CMD_RR, _CMD_WR)
+    _gain = CBits(3, 0x00, 4, 2, False, _CMD_RR, _CMD_WR)
+
+    # Register 0x02
+    #  ResY(0)     | ResX(1) |  ResX(0) | DIGFILT(2) | DIGFILT(1)  | DIGFILT(0) | |   OSR(1)  |   OSR(0)    |
+    # -------------------------------------------------------------------------------------------------------
+    #  ---------   | ------- | -------- | T/nA(1)    |    POL(1)   |  ResZ(1)   |   ResZ(0)   |  ResY(1)    |
+    _oversampling = CBits(2, 0x02, 0, 2, False, _CMD_RR, _CMD_WR)
+    _digfilt = CBits(3, 0x02, 2, 2, False, _CMD_RR, _CMD_WR)
+    _res_x = CBits(2, 0x02, 5, 2, False, _CMD_RR, _CMD_WR)
+    _res_y = CBits(2, 0x02, 7, 2, False, _CMD_RR, _CMD_WR)
+    _res_z = CBits(2, 0x02, 9, 2, False, _CMD_RR, _CMD_WR)
 
     def __init__(self, i2c, address=0x0C):
         self._i2c = i2c
         self._address = address
         self._status_last = None
+        self._res_x = self._res_y = self._res_z = RESOLUTION_3
+        self._digfilt = FILTER_7
+        self._oversampling = OSR_3
+        self._gain = GAIN_1X
 
     @property
     def gain(self):
         """
         The gain setting for the device.
-
-        +----------------------------------+----------------------+
-        | Mode                             | Value                |
-        +==================================+======================+
-        | :py:const:`mlx90393.GAIN_1_67X`  | :py:const:`0x5`      |
-        | :py:const:`mlx90393.GAIN_2X`     | :py:const:`0x4`      |
-        | :py:const:`mlx90393.GAIN_5X`     | :py:const:`0x0`      |
-        | :py:const:`mlx90393._GAIN_SHIFT` | :py:const:`const(4)` |
-        | :py:const:`mlx90393.GAIN_1_33X`  | :py:const:`0x6`      |
-        | :py:const:`mlx90393.GAIN_1X`     | :py:const:`0x7`      |
-        | :py:const:`mlx90393.GAIN_2_5X`   | :py:const:`0x3`      |
-        | :py:const:`mlx90393.GAIN_3X`     | :py:const:`0x2`      |
-        | :py:const:`mlx90393.GAIN_4X`     | :py:const:`0x1`      |
-        +----------------------------------+----------------------+
-
         """
         gain_values = (
             "GAIN_5X",
@@ -305,3 +341,192 @@ class MLX90393:
         if value not in range(1, 8):
             raise ValueError("Invalid GAIN setting")
         self._gain = value
+
+    @property
+    def resolution_x(self):
+        """
+        X Axis Resolution
+
+        +------------------------------------+-----------------+
+        | Mode                               | Value           |
+        +====================================+=================+
+        | :py:const:`mlx90393.RESOLUTION_3`  | :py:const:`0x3` |
+        | :py:const:`mlx90393.RESOLUTION_2`  | :py:const:`0x2` |
+        | :py:const:`mlx90393.RESOLUTION_1`  | :py:const:`0x1` |
+        | :py:const:`mlx90393.RESOLUTION_0`  | :py:const:`0x0` |
+        +------------------------------------+-----------------+
+
+        """
+        res_values = ("RESOLUTION_0", "RESOLUTION_1", "RESOLUTION_2", "RESOLUTION_3")
+
+        return res_values[self._res_x]
+
+    @resolution_x.setter
+    def resolution_x(self, value):
+        if value not in range(0, 4):
+            raise ValueError("Invalid resolution setting")
+        self._res_x = value
+
+    @property
+    def resolution_y(self):
+        """
+        Y Axis Resolution
+
+        +------------------------------------+-----------------+
+        | Mode                               | Value           |
+        +====================================+=================+
+        | :py:const:`mlx90393.RESOLUTION_3`  | :py:const:`0x3` |
+        | :py:const:`mlx90393.RESOLUTION_2`  | :py:const:`0x2` |
+        | :py:const:`mlx90393.RESOLUTION_1`  | :py:const:`0x1` |
+        | :py:const:`mlx90393.RESOLUTION_0`  | :py:const:`0x0` |
+        +------------------------------------+-----------------+
+
+        """
+        res_values = ("RESOLUTION_0", "RESOLUTION_1", "RESOLUTION_2", "RESOLUTION_3")
+
+        return res_values[self._res_y]
+
+    @resolution_y.setter
+    def resolution_y(self, value):
+        if value not in range(0, 4):
+            raise ValueError("Invalid resolution setting")
+        self._res_y = value
+
+    @property
+    def resolution_z(self):
+        """
+        Z Axis Resolution
+
+        +------------------------------------+-----------------+
+        | Mode                               | Value           |
+        +====================================+=================+
+        | :py:const:`mlx90393.RESOLUTION_3`  | :py:const:`0x3` |
+        | :py:const:`mlx90393.RESOLUTION_2`  | :py:const:`0x2` |
+        | :py:const:`mlx90393.RESOLUTION_1`  | :py:const:`0x1` |
+        | :py:const:`mlx90393.RESOLUTION_0`  | :py:const:`0x0` |
+        +------------------------------------+-----------------+
+
+        """
+        res_values = ("RESOLUTION_0", "RESOLUTION_1", "RESOLUTION_2", "RESOLUTION_3")
+
+        return res_values[self._res_z]
+
+    @resolution_z.setter
+    def resolution_z(self, value):
+        if value not in range(0, 4):
+            raise ValueError("Invalid resolution setting")
+        self._res_z = value
+
+    @property
+    def digital_filter(self):
+        """
+        Digital filter applicable to ADC
+
+        +-------------------------------+-----------------+
+        | Mode                          | Value           |
+        +===============================+=================+
+        | :py:const:`mlx90393.FILTER_0` | :py:const:`0x0` |
+        | :py:const:`mlx90393.FILTER_1` | :py:const:`0x1` |
+        | :py:const:`mlx90393.FILTER_2` | :py:const:`0x2` |
+        | :py:const:`mlx90393.FILTER_3` | :py:const:`0x3` |
+        | :py:const:`mlx90393.FILTER_4` | :py:const:`0x4` |
+        | :py:const:`mlx90393.FILTER_5` | :py:const:`0x5` |
+        | :py:const:`mlx90393.FILTER_6` | :py:const:`0x6` |
+        | :py:const:`mlx90393.FILTER_7` | :py:const:`0x7` |
+        +-------------------------------+-----------------+
+
+        """
+        digfilt_values = (
+            "FILTER_0",
+            "FILTER_1",
+            "FILTER_2",
+            "FILTER_3",
+            "FILTER_4",
+            "FILTER_5",
+            "FILTER_6",
+            "FILTER_7",
+        )
+
+        return digfilt_values[self._digfilt]
+
+    @digital_filter.setter
+    def digital_filter(self, value):
+        if value not in range(0, 8):
+            raise ValueError("Invalid Digital Filter setting")
+        self._digfilt = value
+
+    @property
+    def oversampling(self):
+        """
+        Temperature sensor ADC oversampling ratio
+
+        +----------------------------+-----------------+
+        | Mode                       | Value           |
+        +============================+=================+
+        | :py:const:`mlx90393.OSR_0` | :py:const:`0x0` |
+        | :py:const:`mlx90393.OSR_1` | :py:const:`0x1` |
+        | :py:const:`mlx90393.OSR_2` | :py:const:`0x2` |
+        | :py:const:`mlx90393.OSR_3` | :py:const:`0x3` |
+        +----------------------------+-----------------+
+
+        """
+        oversampling_values = ("OSR_0", "OSR_0_1", "OSR_0_2", "OSR_0_3")
+
+        return oversampling_values[self._oversampling]
+
+    @oversampling.setter
+    def oversampling(self, value):
+        if value not in range(0, 8):
+            raise ValueError("Invalid oversampling setting")
+        self._oversampling = value
+
+    @property
+    def magnetic(self):
+        """
+        The processed magnetometer sensor values.
+        A 3-tuple of X, Y, Z axis values in microteslas that are signed floats.
+        """
+        delay = self._TCONV[self._digfilt][self._oversampling] / 1000
+        delay = delay * 1.1
+
+        payload = bytes([_CMD_SM | _CMD_AXIS_ALL])
+        data = bytearray(1)
+        self._i2c.writeto(self._address, payload)
+        data = self._i2c.readfrom(self._address, len(data))
+        self._status_last = data[0]
+
+        time.sleep(delay)
+
+        data2 = bytearray(7)
+        payload = bytes([_CMD_RM | _CMD_AXIS_ALL])
+        self._i2c.writeto(self._address, payload)
+        data2 = self._i2c.readfrom(self._address, len(data2))
+
+        self._status_last = data2[0]
+        x = self._unpack_axis_data(self._res_x, data2[1:3])
+        y = self._unpack_axis_data(self._res_y, data2[3:5])
+        z = self._unpack_axis_data(self._res_z, data2[5:7])
+
+        if self._hall == 12:
+            hallconf_index = 0
+        else:
+            hallconf_index = 1
+
+        x = x * self._resolutionsxy[self._res_x][hallconf_index][self._gain]
+        y = y * self._resolutionsxy[self._res_y][hallconf_index][self._gain]
+        z = z * self._resolutionsz[self._res_z][hallconf_index][self._gain]
+
+        return x, y, z
+
+    @staticmethod
+    def _unpack_axis_data(resolution, data):
+        # see datasheet
+        if resolution == RESOLUTION_3:
+            (value,) = struct.unpack(">H", data)
+            value -= 0x4000
+        elif resolution == RESOLUTION_2:
+            (value,) = struct.unpack(">H", data)
+            value -= 0x8000
+        else:
+            value = struct.unpack(">h", data)[0]
+        return value
