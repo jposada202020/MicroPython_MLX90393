@@ -482,8 +482,8 @@ class MLX90393:
         .. note::
             The MLX90393 provides configurable filters to adjust the tradeoff
             between current consumption, noise, and conversion time. See section
-             15.1.5 for details on selecting the conversion time by adjusting
-             `oversampling` and `digital_filter`
+            15.1.5 for details on selecting the conversion time by adjusting
+            `oversampling` and `digital_filter`
 
         +----------------------------+-----------------+
         | Mode                       | Value           |
