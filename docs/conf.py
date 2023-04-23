@@ -102,7 +102,7 @@ html_theme_options = {
         {
             "media": "(prefers-color-scheme: light)",
             "scheme": "default",
-            "primary": "green",
+            "primary": "purple",
             "accent": "light-blue",
             "toggle": {
                 "icon": "material/lightbulb-outline",
@@ -112,7 +112,7 @@ html_theme_options = {
         {
             "media": "(prefers-color-scheme: dark)",
             "scheme": "slate",
-            "primary": "green",
+            "primary": "purple",
             "accent": "light-blue",
             "toggle": {
                 "icon": "material/lightbulb",
