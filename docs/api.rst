@@ -1,3 +1,5 @@
+ADXL90393 MicroPython Library
+===============================
 
 .. automodule:: micropython_mlx90393
     :members:
