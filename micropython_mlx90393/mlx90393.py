@@ -22,12 +22,9 @@ This library depends on Micropython
 # pylint: disable=too-many-arguments, line-too-long
 
 import time
+import struct
 from micropython import const
 
-try:
-    import struct
-except ImportError:
-    import ustruct as struct
 
 __version__ = "0.0.0+auto.0"
 __repo__ = "https://github.com/jposada202020/MicroPython_MLX90393.git"
